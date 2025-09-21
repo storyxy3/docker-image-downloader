@@ -1,0 +1,58 @@
+name: Download Docker Images
+on:
+  workflow_dispatch:
+    inputs:
+      go_version:
+        description: 'Go version (e.g., 1.25-alpine3.22)'
+        default: '1.25-alpine3.22'
+        required: false
+      alpine_version:
+        description: 'Alpine version (e.g., 3.22)'
+        default: '3.22'
+        required: false
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
+
+      - name: Pull Docker images
+        run: |
+          echo "🔍 拉取 Go 镜像: golang:${{ github.event.inputs.go_version }}"
+          docker pull golang:${{ github.event.inputs.go_version }}
+          
+          echo "🔍 拉取 Alpine 镜像: alpine:${{ github.event.inputs.alpine_version }}"
+          docker pull alpine:${{ github.event.inputs.alpine_version }}
+
+      - name: Verify images
+        run: |
+          echo "📋 验证镜像..."
+          docker images | grep -E "(golang|alpine)"
+          
+          echo "🔍 测试 Go 镜像..."
+          docker run --rm golang:${{ github.event.inputs.go_version }} go version
+          
+          echo "🔍 测试 Alpine 镜像..."
+          docker run --rm alpine:${{ github.event.inputs.alpine_version }} cat /etc/alpine-release
+
+      - name: Save images to tar
+        run: |
+          echo "📦 打包镜像..."
+          docker save golang:${{ github.event.inputs.go_version }} alpine:${{ github.event.inputs.alpine_version }} > base-images.tar
+          ls -lh base-images.tar
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-base-images
+          path: base-images.tar
+          retention-days: 7
+
+      - name: Summary
+        run: |
+          echo "## 🎉 下载完成" >> $GITHUB_STEP_SUMMARY
+          echo "文件: base-images.tar" >> $GITHUB_STEP_SUMMARY
+          echo "大小: $(ls -lh base-images.tar | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
+          echo "请在 Artifacts 中下载文件" >> $GITHUB_STEP_SUMMARY
